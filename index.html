@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2027 每日一页日历 · 全年 365 页</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Noto+Serif+SC:wght@400;600&family=Inter:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   2027 每日一页日历 · 全年 365 页
+   版面 215mm × 170mm 横版 · 双孔装订孔距 100mm
+   照片: 第N天 → img_web/N.jpg（全年每张照片用一次）
+   农历/节气/节日: data/lunar2027.js（scripts/gen_lunar_2027.py 生成）
+   数字手法/话语类别 均按日期序号轮换，同一天固定
+   ============================================================ */
+
+:root{
+  --paper:   #f4f1ea;
+  --ink:     #2a2620;
+  --accent:  #b03a2e;
+  --gray-m:  #8a8276;
+  --gray-l:  #c8c2b6;
+
+  --f-num: "Playfair Display","Times New Roman","Songti SC",serif;
+  --f-cn:  "Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --f-en:  "Inter","Helvetica Neue","PingFang SC",sans-serif;
+}
+*{ margin:0; padding:0; box-sizing:border-box; }
+body{ background:#d9d5cc; font-family:var(--f-cn); -webkit-font-smoothing:antialiased; }
+
+/* ---------- 工具条 ---------- */
+.toolbar{
+  position:sticky; top:0; z-index:99;
+  display:flex; align-items:center; gap:20px;
+  padding:12px 24px; background:#22201c; color:#c8c2b6;
+  font-family:var(--f-en); font-weight:300; font-size:13px; letter-spacing:.08em;
+}
+.toolbar strong{ color:#f4f1ea; font-weight:400; letter-spacing:.18em; }
+.toolbar select{
+  background:#22201c; color:#f4f1ea; border:1px solid #6b655a; border-radius:2px;
+  padding:6px 10px; font-family:var(--f-cn); font-size:13px; cursor:pointer;
+}
+.toolbar button{
+  margin-left:auto; padding:7px 18px; background:transparent; color:#f4f1ea;
+  border:1px solid #6b655a; border-radius:2px;
+  font-family:var(--f-en); font-weight:300; font-size:12px; letter-spacing:.2em;
+  cursor:pointer; transition:.2s;
+}
+.toolbar button:hover{ background:var(--accent); border-color:var(--accent); }
+
+.stage{ padding:40px 24px 80px; display:flex; flex-direction:column; align-items:center; gap:40px; }
+
+/* 月份分隔（仅屏幕显示） */
+.month-divider{
+  display:flex; align-items:center; gap:16px; width:812px; max-width:92vw;
+  margin:24px 0 -8px; color:#8a8276; font-family:var(--f-cn);
+}
+.month-divider::before,.month-divider::after{ content:""; flex:1; height:1px; background:#b9b2a4; }
+.month-divider .zh{ font-size:20px; font-weight:600; letter-spacing:.4em; color:#6f6a5e; }
+.month-divider .en{ font-family:var(--f-en); font-size:10px; font-weight:300; letter-spacing:.4em; }
+
+/* ============================================================
+   页面本体 215 × 170 mm
+   ============================================================ */
+.sheet{
+  position:relative; overflow:hidden;
+  width:215mm; height:170mm;
+  background:var(--paper);
+  box-shadow:0 18px 50px rgba(42,38,32,.35), 0 2px 8px rgba(42,38,32,.2);
+  print-color-adjust:exact; -webkit-print-color-adjust:exact;
+}
+.sheet.weekend{ --ink:#b03a2e; }  /* 周末/节日 → 朱红 */
+.sheet.birthday{ --ink:#a8863d; }  /* 家人生日 → 金色（优先于周末） */
+
+/* ---------- Layer 1 背景 ---------- */
+.bg-photo{
+  position:absolute; inset:0; z-index:1;
+  background-size:cover; background-position:center;
+  opacity:.24;
+  filter:saturate(.72) contrast(.94) brightness(1.03) sepia(.10);
+}
+.bg-veil{ position:absolute; inset:0; z-index:2; background:rgba(244,241,234,.26); }
+.bg-grid{
+  position:absolute; inset:0; z-index:3; opacity:.75;
+  background-image:
+    repeating-linear-gradient(to right,  rgba(42,38,32,.045) 0 .18mm, transparent .18mm 5mm),
+    repeating-linear-gradient(to bottom, rgba(42,38,32,.045) 0 .18mm, transparent .18mm 5mm);
+}
+
+/* ---------- Layer 2 装饰 ---------- */
+.hairline{ position:absolute; left:14mm; right:14mm; height:.15mm; background:var(--gray-l); z-index:4; }
+.hairline.top{ top:13mm; } .hairline.bottom{ bottom:13mm; }
+
+.rings{ position:absolute; top:0; left:0; right:0; height:14mm; z-index:5; }
+.rings i{
+  position:absolute; top:4.2mm; width:5.4mm; height:5.4mm; border-radius:50%;
+  border:.3mm solid var(--gray-l);
+  background:radial-gradient(circle at 40% 35%, #ece8df 55%, #ddd8cc 100%);
+  box-shadow:inset 0 .4mm .8mm rgba(42,38,32,.18);
+}
+.rings i:first-child{ left:54.8mm; } .rings i:last-child{ left:154.8mm; } /* 孔距100mm */
+
+.deco-lines{ position:absolute; z-index:5; display:flex; flex-direction:column; gap:1.6mm; }
+.deco-lines i{ display:block; background:var(--gray-l); }
+.deco-lines i:nth-child(1){ width:20mm; height:.3mm; background:var(--gray-m); }
+.deco-lines i:nth-child(2){ width:9mm;  height:.8mm; background:var(--ink); opacity:.75; }
+.deco-lines i:nth-child(3){ width:14mm; height:.3mm; }
+.deco-lines i:nth-child(4){ width:5mm;  height:.5mm; background:var(--accent); }
+
+.dots{ position:absolute; z-index:5; display:grid; grid-template-columns:repeat(3,1.4mm); gap:2.2mm; }
+.dots i{ width:1.1mm; height:1.1mm; border-radius:50%; background:var(--gray-l); }
+.dots i.hot{ width:1.7mm; height:1.7mm; background:var(--accent); }
+
+/* ---------- Layer 3 内容 ---------- */
+.masthead{ position:absolute; z-index:6; top:17.5mm; left:20mm; right:20mm;
+  display:flex; justify-content:space-between; align-items:flex-start; }
+.month .cn{ display:block; font-weight:600; font-size:24pt; color:var(--ink); letter-spacing:.35em; }
+.month .en{ display:block; margin-top:1.6mm; font-family:var(--f-en); font-weight:300; font-size:8.5pt; letter-spacing:.55em; color:var(--gray-m); text-transform:uppercase; }
+.year{ text-align:right; font-family:var(--f-en); color:var(--gray-m); }
+.year .y{ font-family:var(--f-num); font-weight:500; font-style:italic; font-size:15pt; color:var(--ink); letter-spacing:.06em; }
+.year .roman{ display:block; margin-top:1mm; font-weight:200; font-size:6pt; letter-spacing:.5em; }
+
+.spine{
+  position:absolute; z-index:6; left:9mm; top:42mm;
+  writing-mode:vertical-rl; text-orientation:mixed;
+  font-family:var(--f-en); font-weight:300; font-size:6pt; letter-spacing:.85em;
+  color:var(--gray-m);
+}
+
+/* ---------- 主视觉数字：四种手法（全部完整可见，不裁切） ---------- */
+.number{ position:absolute; z-index:7; font-family:var(--f-num); font-weight:900; line-height:.78;
+  display:grid; }                    /* grid 叠放：影子与实体像素级对齐 */
+.number>span{ grid-area:1/1; }
+
+.tech-double .solid{ color:var(--ink); }
+.tech-double .ghost{ transform:translate(1.6mm,1.6mm); color:transparent;
+  -webkit-text-stroke:.4mm var(--ink); opacity:.45; }
+
+.tech-clip{
+  color:transparent;
+  line-height:1.4;                 /* 必须 ≥ 字体ascent+descent(≈1.36)，否则 bg-clip 裁掉溢出盒外的笔画 */
+  background-size:cover; background-position:center;
+  -webkit-background-clip:text; background-clip:text;
+}
+.tech-clip .ghost{ display:none; }
+
+.tech-bleed .solid{ color:var(--ink); }
+.tech-bleed .ghost{ display:none; }
+
+.tech-hollow .solid{ color:transparent; -webkit-text-stroke:.5mm var(--ink); }
+.tech-hollow .ghost{ display:none; }
+
+/* ---------- 底部信息带 ---------- */
+.baseline{ position:absolute; z-index:8; left:20mm; right:20mm; bottom:19mm;
+  display:flex; justify-content:space-between; align-items:flex-end; }
+.day-info{ max-width:126mm; }
+.day-row{ display:flex; align-items:baseline; gap:4mm; margin-bottom:3mm; }
+.anchor{ align-self:center; width:4mm; height:4mm; background:var(--accent); }
+.day-cn{ font-weight:600; font-size:14pt; color:var(--ink); letter-spacing:.3em; }
+.day-en{ font-family:var(--f-en); font-weight:300; font-size:8pt; letter-spacing:.42em; color:var(--gray-m); text-transform:uppercase; }
+.chip{ align-self:center; padding:.7mm 2.2mm .7mm 2.6mm; background:var(--accent); color:#f7f4ec;
+  font-size:8pt; font-weight:600; letter-spacing:.25em; border-radius:.8mm; }
+.chip.bd{ background:#b39055; }   /* 生日标签 → 金色 */
+.quote{ font-weight:400; font-size:14pt; line-height:1.85; color:var(--ink); letter-spacing:.12em; }
+
+.meta{ display:flex; flex-direction:column; align-items:flex-end; gap:2.6mm; }
+.lunar{ font-family:var(--f-cn); font-weight:400; font-size:8pt; letter-spacing:.3em; color:var(--gray-m); display:flex; align-items:center; }
+.lunar.hot{ color:var(--accent); }
+.lunar.gold{ color:#a8863d; }
+
+/* 月相：農历日推算盈亏，遮罩圆偏移模拟 */
+.moon{ display:inline-block; width:5.5mm; height:5.5mm; border-radius:50%;
+  background:#a59d8e; position:relative; overflow:hidden; margin-right:2mm; flex:none; }
+.moon::after{ content:""; position:absolute; inset:-2%; border-radius:50%;
+  background:var(--paper); transform:translateX(calc(var(--k,0)*11mm)); }
+
+/* 数字对侧：竖排农历大字（填充留白，参与构图） */
+.lunar-side{
+  position:absolute; z-index:6; top:56mm;
+  writing-mode:vertical-rl; text-orientation:mixed;
+  font-family:var(--f-cn); font-weight:600; font-size:11.5pt; letter-spacing:.55em;
+  color:var(--gray-m); opacity:.9;
+}
+.lunar-side b{ font-weight:600; color:var(--accent); margin-top:5mm; letter-spacing:.4em; }
+
+/* 底部月份英文大水印（填补中下部留白，11% 清晰可辨但不抢戏） */
+.watermark{
+  position:absolute; z-index:4; left:0; right:0; bottom:27mm; text-align:center;
+  font-family:var(--f-num); font-weight:900; font-style:italic; font-size:56pt;
+  letter-spacing:.14em; color:var(--ink); opacity:.11; white-space:nowrap;
+  pointer-events:none;
+}
+.day-count{ font-family:var(--f-en); font-weight:300; font-size:6pt; letter-spacing:.4em; color:var(--gray-m); }
+.progress{ display:flex; align-items:center; gap:1.32mm; }
+.progress i{ width:.35mm; height:3mm; background:var(--gray-l); }
+.progress i.today{ width:2.1mm; height:2.1mm; border-radius:50%; background:var(--accent); }
+
+/* ---------- Layer 4 点缀 ---------- */
+.seal{
+  position:absolute; z-index:9; right:20mm; bottom:16mm;
+  width:11mm; height:11mm; background:var(--accent);
+  transform:rotate(-3deg);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 .5mm 1.5mm rgba(176,58,46,.3);
+  print-color-adjust:exact; -webkit-print-color-adjust:exact;
+}
+.seal span{ font-weight:600; font-size:6.5pt; color:#f7f4ec; writing-mode:vertical-rl; letter-spacing:.25em; }
+
+/* ============================================================
+   打印 / PDF
+   ============================================================ */
+@page{ size:215mm 170mm; margin:0; }
+@media print{
+  body{ background:#fff; }
+  .toolbar,.month-divider{ display:none; }
+  .stage{ padding:0; gap:0; }
+  .sheet{ box-shadow:none; }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <strong>2027 · 每日一页 · 365 天</strong>
+  <select id="monthJump" title="跳转月份">
+    <option value="01">一月 JANUARY</option><option value="02">二月 FEBRUARY</option>
+    <option value="03">三月 MARCH</option><option value="04">四月 APRIL</option>
+    <option value="05">五月 MAY</option><option value="06">六月 JUNE</option>
+    <option value="07">七月 JULY</option><option value="08">八月 AUGUST</option>
+    <option value="09">九月 SEPTEMBER</option><option value="10">十月 OCTOBER</option>
+    <option value="11">十一月 NOVEMBER</option><option value="12">十二月 DECEMBER</option>
+  </select>
+  <button id="printBtn">打印 / 导出 PDF</button>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<script src="data/lunar2027.js"></script>
+<script src="data/quotes2027.js"></script>
+<script>
+/* ============================================================
+   配置
+   ============================================================ */
+const YEAR = 2027;
+const TOTAL_DAYS = 365;                       // 2027 非闰年
+/* 话语库（励志/夸夸/调侃 各122条，全年零重复）+ 节日语 → 移至 data/quotes2027.js */
+const CN_MONTH=["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
+const EN_MONTH=["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+const CN_WEEK=["日","一","二","三","四","五","六"];
+const EN_WEEK=["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
+const ROMAN=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+const SEALS=["平安","喜乐","静好","自在"];
+const CATS=["励志","夸夸","调侃"];   // 三档语气轮换：励志 / 猛夸 / 调侃
+const BIRTHDAY_QUOTES={
+  "老公":"今天是老公的生日，蛋糕买大一点，愿望让他自己许。",
+  "自己":"生日快乐，今天你最大，愿望尽管许，日历帮你记着。",
+  "悠悠":"悠悠生日快乐，又长大一岁，糖果和拥抱都要加倍。",
+  "老妈":"老妈生日快乐，愿她健康常伴，笑容常在。",
+  "老爸":"老爸生日快乐，愿他身体硬朗，心情舒畅。",
+  "妈妈":"妈妈生日快乐，她的岁数是秘密，她的爱从来不是。",
+  "爸爸":"爸爸生日快乐，别忘打个电话，说声生日快乐。",
+  "外婆":"外婆生日快乐，愿她福寿安康，笑口常开。",
+  "外公":"外公生日快乐，愿他松鹤延年，身体康健。",
+  "老弟":"老弟生日快乐，又长一岁，红包准备好了吗。"
+};
+const birthdayQuote=n=>BIRTHDAY_QUOTES[n]||`今天是${n}的生日，记得说声生日快乐。`;
+const TECHNIQUES=["bleed","hollow","double","clip"];        // 数字手法轮换
+
+const pad=n=>String(n).padStart(2,"0");
+const pick=(a,i)=>a[((i%a.length)+a.length)%a.length];
+const cnNum=n=>{const d=["","一","二","三","四","五","六","七","八","九"];let s="";
+  if(n>=100){s+=(n>=200?d[Math.floor(n/100)]:"")+"百";n%=100;if(!n)return s;}
+  if(n>=10){s+=(n>=20?d[Math.floor(n/10)]:"")+"十";n%=10;if(!n)return s;}
+  return s+d[n];};
+
+const LD_NUM={"初一":1,"初二":2,"初三":3,"初四":4,"初五":5,"初六":6,"初七":7,"初八":8,"初九":9,"初十":10,"十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,"廿一":21,"廿二":22,"廿三":23,"廿四":24,"廿五":25,"廿六":26,"廿七":27,"廿八":28,"廿九":29,"三十":30};
+const moonK=ld=>{                        // 农历日→月相遮罩偏移 [-1,1]，0=朔(全遮) ±1=望(全露)
+  const age=LD_NUM[ld]||15;
+  const f=(1-Math.cos(2*Math.PI*(age-1)/29.53))/2;   // 照亮比例
+  return (age<=15?-1:1)*f;
+};
+
+const photoOf = idx => `data/img_web/${idx+1}.jpg`;                 // 365张照片每天一张
+
+/* ============================================================
+   渲染一页
+   ============================================================ */
+function renderDay(m, d){
+  const date=new Date(YEAR,m-1,d), dow=date.getDay();
+  const idx=Math.floor((date-new Date(YEAR,0,0))/864e5)-1;  // 0~364
+  const key=`${YEAR}-${pad(m)}-${pad(d)}`;
+  const lu=(LUNAR.days[pad(m)+"-"+pad(d)])||{lm:"",ld:"",t:"",f:"",r:0,bd:""};   // 农历/节气/节日/生日
+  const bd=lu.bd||"";                                                   // 家人生日标记
+  const red=dow===0||dow===6||lu.r===1;
+  const lunarTxt=bd?`${bd}生日`:(lu.f||lu.t||(lu.ld==="初一"?lu.lm:lu.ld));
+  const lunarCls=bd?" gold":((lu.f||lu.t)?" hot":"");
+
+  const tech=pick(TECHNIQUES,idx);
+  const cat=pick(CATS,idx);
+  const quote=bd?birthdayQuote(bd):(HOLIDAY_QUOTES[key]||QUOTES[cat][Math.floor(idx/3)]);   // 生日 > 节日 > 轮换
+  const numRight=(tech==="clip"||tech==="bleed");
+
+  const sheet=document.createElement("section");
+  sheet.className="sheet"+(red?" weekend":"")+(bd?" birthday":"");
+  sheet.id="d"+key;
+  sheet.dataset.photo=photoOf(idx);
+
+  /* 数字手法 → 版式 */
+  const NUM={
+    double:{cls:"tech-double", style:"left:26mm; top:48mm; font-size:172pt"},
+    clip:  {cls:"tech-clip",   style:"right:20mm; top:24mm; font-size:195pt; text-align:right"},
+    bleed: {cls:"tech-bleed",  style:"right:16mm; top:38mm; font-size:205pt; text-align:right"},
+    hollow:{cls:"tech-hollow", style:"left:30mm; top:44mm; font-size:185pt"}
+  }[tech];
+  sheet.dataset.numphoto = tech==="clip" ? photoOf(idx) : "";
+
+  const total=daysInMonth(m);
+  sheet.innerHTML=`
+    <div class="bg-photo"></div>
+    <div class="bg-veil"></div>
+    <div class="bg-grid"></div>
+    <div class="watermark">${EN_MONTH[m-1]}</div>
+
+    <div class="hairline top"></div>
+    <div class="hairline bottom"></div>
+    <div class="rings"><i></i><i></i></div>
+    <div class="deco-lines" style="${numRight?"left:20mm; top:34mm; align-items:flex-start":"right:20mm; top:31mm; align-items:flex-end"}"><i></i><i></i><i></i><i></i></div>
+    <div class="dots" style="${numRight?"left:20mm; bottom:54mm":"right:22mm; top:118mm"}">
+      ${Array.from({length:9},(_,i)=>`<i${i===idx%9?' class="hot"':''}></i>`).join("")}
+    </div>
+
+    <header class="masthead">
+      <div class="month"><span class="cn">${CN_MONTH[m-1]}</span><span class="en">${EN_MONTH[m-1]}</span></div>
+      <div class="year"><span class="y">${YEAR}</span><span class="roman">ANNO ${ROMAN[m-1]} · ${LUNAR.gz}${LUNAR.sx}年</span></div>
+    </header>
+
+    <aside class="spine">贰零贰柒 · 每日一页 · 第${cnNum(idx+1)}日 · ${cat}语</aside>
+
+    <aside class="lunar-side" style="${numRight?"left:22mm":"right:22mm"}">
+      <span>${lu.ld==="初一"?lu.lm:(lu.lm+lu.ld)}</span>${lu.t?`<b>${lu.t}</b>`:""}
+    </aside>
+
+    <div class="number ${NUM.cls}" style="${NUM.style}" data-n="${d}">
+      <span class="ghost" aria-hidden="true">${d}</span><span class="solid">${d}</span>
+    </div>
+
+    <footer class="baseline">
+      <div class="day-info">
+        <div class="day-row">
+          <span class="anchor"></span>
+          <span class="day-cn">星期${CN_WEEK[dow]}</span>
+          <span class="day-en">${EN_WEEK[dow]}</span>
+          ${lu.f?`<span class="chip">${lu.f}</span>`:""}${bd?`<span class="chip bd">${bd} · 生日</span>`:""}
+        </div>
+        <p class="quote">${quote}</p>
+      </div>
+      <div class="meta">
+        <span class="lunar${lunarCls}"><i class="moon" style="--k:${moonK(lu.ld).toFixed(3)}"></i>${lunarTxt}</span>
+        <span class="day-count">WEEK ${String(Math.floor(idx/7)+1).padStart(2,"0")} · DAY ${String(idx+1).padStart(3,"0")}/${TOTAL_DAYS}</span>
+        <div class="progress" style="width:${total*2.2}mm">
+          ${Array.from({length:total},(_,i)=>`<i${i+1===d?' class="today"':''}></i>`).join("")}
+        </div>
+      </div>
+    </footer>
+
+    <div class="seal"><span>${pick(SEALS,idx)}</span></div>
+  `;
+  return sheet;
+}
+
+const daysInMonth=m=>new Date(YEAR,m,0).getDate();
+
+/* ============================================================
+   挂载全年 + 月份分隔
+   ============================================================ */
+const stage=document.getElementById("stage");
+const frag=document.createDocumentFragment();
+const only = location.hash ? location.hash.slice(1).split(",") : null;   // 调试: index.html#2027-01-02,2027-01-03
+if(only){
+  only.forEach(s=>{ const [,m,d]=s.split("-"); frag.appendChild(renderDay(+m,+d)); });
+} else {
+for(let m=1;m<=12;m++){
+  const div=document.createElement("div");
+  div.className="month-divider"; div.id=`m${YEAR}-${pad(m)}`;
+  div.innerHTML=`<span class="zh">${CN_MONTH[m-1]}</span><span class="en">${EN_MONTH[m-1]} · MMXXVII</span>`;
+  frag.appendChild(div);
+  for(let d=1;d<=daysInMonth(m);d++) frag.appendChild(renderDay(m,d));
+}
+}
+stage.appendChild(frag);
+
+/* ---------- 懒加载：接近视口才注入背景照片 / 贴纸 / 负空间数字 ---------- */
+function hydrate(s){
+  const bg=s.querySelector(".bg-photo");
+  if(bg && s.dataset.photo && !bg.style.backgroundImage)
+    bg.style.backgroundImage=`url('${s.dataset.photo}')`;
+  const num=s.querySelector(".number");
+  if(num && s.dataset.numphoto && !num.style.backgroundImage)
+    num.style.backgroundImage=`linear-gradient(rgba(176,58,46,.55),rgba(176,58,46,.55)), url('${s.dataset.numphoto}')`;
+}
+const io=new IntersectionObserver(entries=>{
+  for(const e of entries){
+    if(!e.isIntersecting) continue;
+    hydrate(e.target); io.unobserve(e.target);
+  }
+},{ rootMargin:"800px 0px" });
+document.querySelectorAll(".sheet").forEach(s=>io.observe(s));
+
+/* ---------- 打印前全量补载，避免未滚动到的页面空白 ---------- */
+function bgUrlsOf(s){
+  const urls=new Set();
+  const grab=el=>{ const m=/url\(["']?([^"')]+)["']?\)/.exec((el&&el.style.backgroundImage)||""); if(m) urls.add(m[1]); };
+  grab(s.querySelector(".bg-photo"));      // 背景照片
+  grab(s.querySelector(".number"));       // 负空间数字遇底图
+  return urls;
+}
+function hydrateAll(onProgress){
+  const sheets=[...document.querySelectorAll(".sheet")];
+  sheets.forEach(hydrate);
+  const urls=new Set(); sheets.forEach(s=>bgUrlsOf(s).forEach(u=>urls.add(u)));
+  let done=0; const total=urls.size;
+  onProgress && onProgress(0,total);
+  const loads=[...urls].map(u=>new Promise(res=>{
+    const im=new Image();
+    im.onload=im.onerror=()=>{ done++; onProgress && onProgress(done,total); res(); };
+    im.src=u;
+  }));
+  return Promise.race([
+    Promise.all(loads),
+    new Promise(r=>setTimeout(r,60000))          // 最多等 60s，防止个别图卡死
+  ]);
+}
+window.addEventListener("beforeprint",()=>hydrateAll());
+document.getElementById("printBtn").addEventListener("click",async()=>{
+  const b=document.getElementById("printBtn");
+  b.disabled=true;
+  await hydrateAll((n,t)=>b.textContent=`加载图片中 ${n}/${t} …`);
+  b.textContent="正在唤起打印…";
+  await new Promise(r=>setTimeout(r,300));       // 留一帧渲染时间
+  window.print();
+  b.disabled=false; b.textContent="打印 / 导出 PDF";
+});
+
+/* ---------- 月份跳转 ---------- */
+document.getElementById("monthJump").addEventListener("change",e=>{
+  const t=document.getElementById(`m${YEAR}-${e.target.value}`);
+  if(t) t.scrollIntoView({behavior:"smooth",block:"start"});
+});
+</script>
+</body>
+</html>
